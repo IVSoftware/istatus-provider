@@ -1,11 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace istatus_provider
@@ -15,44 +10,112 @@ namespace istatus_provider
         public MainForm()
         {
             InitializeComponent();
-            _panel = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-            };
-            Controls.Add(_panel);
+
+            // Implicit cast from IStatusProvider to Control
             foreach (Control control in UserControls)
             {
-                _panel.Controls.Add(control);
-            } 
+                flowLayoutPanel.Controls.Add(control);
+            }
+
+            // IStatusProvider
+            foreach (var statusProvider in UserControls)
+            {
+                statusProvider.StatusUpdated += onAnyStatusUpdated;
+            }
         }
-        FlowLayoutPanel _panel;
-        IStatusProvider[] UserControls = new []
+
+        private void onAnyStatusUpdated(object sender, EventArgs e)
+        {
+            foreach (var statusProvider in UserControls)
+            {
+                textBoxMultiline.AppendText($"{statusProvider.Status}{Environment.NewLine}");
+            }
+            textBoxMultiline.AppendText(Environment.NewLine);
+        }
+
+        IStatusProvider[] UserControls = new IStatusProvider[]
         {
             new UserControlTypeA(),
+            new UserControlTypeB(),
+            new UserControlTypeC(),
         };
     }
     interface IStatusProvider
     {
-        public string Status { get; }
+        string Status { get; }
+        event EventHandler StatusUpdated;
     }
     class UserControlTypeA : UserControl, IStatusProvider
     {
-        protected override void OnHandleCreated(EventArgs e)
+        public UserControlTypeA()
         {
-            base.OnHandleCreated(e);
-            if(!DesignMode || _isHandleInitialized)
-            {
-                _isHandleInitialized = true;
-                Controls.Add(
-                    new Button
-                    {
-                        Text = "Button",
-                        Size = new Size(150, 50),
-                    }
-                );
-            }
+            _checkBox =
+                new CheckBox
+                {
+                    Text = "CheckBox",
+                    Size = new Size(150, 50),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Appearance = Appearance.Button,
+                };
+            _checkBox.CheckedChanged += (sender, e) => 
+                StatusUpdated?.Invoke(this, EventArgs.Empty);
+            Controls.Add(_checkBox);
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            AutoSize = true;
         }
-        bool _isHandleInitialized = false;
-        public string Status => GetType().Name;
+        private readonly CheckBox _checkBox;
+
+        public event EventHandler StatusUpdated;
+
+        public string Status => $"{GetType().Name}: {_checkBox.Checked}";
+    }
+    class UserControlTypeB : UserControl, IStatusProvider
+    {
+        int _clickCount = 0;
+        public UserControlTypeB()
+        {
+            _button =
+                new Button
+                {
+                    Text = "Button",
+                    Size = new Size(150, 50),
+                };
+            _button.Click += (sender, e) => 
+                { _clickCount++; StatusUpdated?.Invoke(this, EventArgs.Empty); };
+            Controls.Add(_button);
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            AutoSize = true;
+        }
+        private readonly Button _button;
+
+        public event EventHandler StatusUpdated;
+
+        public string Status => $"{GetType().Name}: {_clickCount} clicks";
+    }
+    class UserControlTypeC : UserControl, IStatusProvider
+    {
+        Color[] _colorArray =
+            Enum.GetValues(typeof(KnownColor))
+            .Cast<KnownColor>()
+            .Select(known=>Color.FromKnownColor(known))
+            .ToArray();
+        int _index = 102;
+        public UserControlTypeC()
+        {
+            _panel =
+                new Panel
+                {
+                    Size = new Size(150, 50),
+                    BackColor = Color.LightCyan,
+                };
+            _panel.Click += (sender, e) => 
+                { _panel.BackColor = _colorArray[_index++]; StatusUpdated?.Invoke(this, EventArgs.Empty); };
+            Controls.Add(_panel);
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            AutoSize = true;
+        }
+        private Panel _panel;
+        public event EventHandler StatusUpdated;
+        public string Status => $"{GetType().Name}: {_panel.BackColor}";
     }
 }
